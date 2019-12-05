@@ -1,0 +1,695 @@
+#pragma once
+
+//
+//	File: scope_guard.hpp
+//
+//	Author: John Sheehan
+//
+//	Description:  
+//
+//	Implementation of scope_guard(TM), a class that allows actions to be
+//	queued up and performed when a particular scope is exited, unless it
+//	is dismissed.  This is taken from an article in the December 2000 
+//	Experts Forum of the C/C++ Users Journal, Online Edition.  It was 
+//	written by Andrei Alexandrescu and Petru Marginean.  
+//	
+//	Since the actual source had problems, I have reimplemented the 
+//	ideas in the article based on code snippets and an understanding of
+//	implementation details.
+//
+
+
+//
+//	Macro for simplifying the case where you don't need to dismiss
+//
+#define CONCATENATE_DIRECT(s1, s2) s1##s2
+#define CONCATENATE(s1, s2) CONCATENATE_DIRECT(s1, s2)
+#define ANONYMOUS_VARIABLE(str) CONCATENATE(str, __LINE__)
+
+#define ON_BLOCK_EXIT dumbnose::scope_guard ANONYMOUS_VARIABLE(scopeGuard) = dumbnose::make_guard
+
+
+namespace dumbnose {
+
+//
+//	Base class for Specific ScopeGuards
+//
+class scope_guard_impl_base
+{
+public:
+    void Dismiss() const throw()
+    {    dismissed_ = true;    }
+protected:
+    scope_guard_impl_base() : dismissed_(false)
+    {}
+    scope_guard_impl_base(const scope_guard_impl_base& other)
+    : dismissed_(other.dismissed_)
+    {    other.Dismiss();    }
+    ~scope_guard_impl_base() {} // nonvirtual (see below why)
+    mutable bool dismissed_;
+
+private:
+    // Disable assignment
+    scope_guard_impl_base& operator=(
+        const scope_guard_impl_base&);
+};
+// typedef used for defining scope_guard
+typedef const scope_guard_impl_base& scope_guard;
+
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	0
+\*	----------------------------------------------------------------------	*/
+template<typename Fun>
+class scope_guard_impl0 : public scope_guard_impl_base
+{
+	Fun fun_;
+public:
+	scope_guard_impl0(const Fun& fun) : fun_(fun) {}
+	~scope_guard_impl0(){
+		if(!dismissed_){
+			try{fun_();}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun>
+scope_guard_impl0<Fun> make_guard(const Fun& fun){
+	return scope_guard_impl0<Fun>(fun);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	0
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun>
+class obj_scope_guard_impl0 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+public:
+	obj_scope_guard_impl0(Obj& obj,const MemFun& fun) : obj_(obj),fun_(fun) {}
+	~obj_scope_guard_impl0(){
+		if(!dismissed_){
+			try{(obj_.*fun_)();}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun>
+obj_scope_guard_impl0<Obj,MemFun> make_guard(Obj& obj,const MemFun& fun){
+	return obj_scope_guard_impl0<Obj,MemFun>(obj,fun);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	1
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1>
+class scope_guard_impl1 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+
+public:
+	scope_guard_impl1(const Fun& fun, const P1& p1) : fun_(fun),p1_(p1) {}
+	~scope_guard_impl1(){
+		if(!dismissed_){
+			try{fun_(p1_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1>
+scope_guard_impl1<Fun,P1> make_guard(const Fun& fun, const P1& p1){
+	return scope_guard_impl1<Fun,P1>(fun,p1);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	1
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1>
+class obj_scope_guard_impl1 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+
+public:
+	obj_scope_guard_impl1(Obj& obj,const MemFun& fun, const P1& p1) : obj_(obj),fun_(fun),p1_(p1) {}
+	~obj_scope_guard_impl1(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1>
+obj_scope_guard_impl1<Obj,MemFun,P1> make_guard(Obj& obj,const MemFun& fun,const P1& p1){
+	return obj_scope_guard_impl1<Obj,MemFun,P1>(obj,fun,p1);
+}
+
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	2
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2>
+class scope_guard_impl2 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+
+public:
+	scope_guard_impl2(const Fun& fun, const P1& p1, const P2& p2) 
+					: fun_(fun),p1_(p1),p2_(p2) {}
+	~scope_guard_impl2(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2>
+scope_guard_impl2<Fun,P1,P2> make_guard(const Fun& fun, const P1& p1, const P2& p2){
+	return scope_guard_impl2<Fun,P1,P2>(fun,p1,p2);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	2
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2>
+class obj_scope_guard_impl2 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+
+public:
+	obj_scope_guard_impl2(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2) {}
+	~obj_scope_guard_impl2(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2>
+obj_scope_guard_impl2<Obj,MemFun,P1,P2> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2){
+	return obj_scope_guard_impl2<Obj,MemFun,P1,P2>(obj,fun,p1,p2);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	3
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3>
+class scope_guard_impl3 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+
+public:
+	scope_guard_impl3(const Fun& fun, const P1& p1, const P2& p2, const P3& p3) 
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3) {}
+	~scope_guard_impl3(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3>
+scope_guard_impl3<Fun,P1,P2,P3> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3){
+	return scope_guard_impl3<Fun,P1,P2,P3>(fun,p1,p2,p3);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	3
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3>
+class obj_scope_guard_impl3 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+
+public:
+	obj_scope_guard_impl3(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3) {}
+	~obj_scope_guard_impl3(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3>
+obj_scope_guard_impl3<Obj,MemFun,P1,P2,P3> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3){
+	return obj_scope_guard_impl3<Obj,MemFun,P1,P2,P3>(obj,fun,p1,p2,p3);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	4
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4>
+class scope_guard_impl4 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+
+public:
+	scope_guard_impl4(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4) 
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4) {}
+	~scope_guard_impl4(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4>
+scope_guard_impl4<Fun,P1,P2,P3,P4> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4){
+	return scope_guard_impl4<Fun,P1,P2,P3,P4>(fun,p1,p2,p3,p4);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	4
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4>
+class obj_scope_guard_impl4 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+
+public:
+	obj_scope_guard_impl4(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4) {}
+	~obj_scope_guard_impl4(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4>
+obj_scope_guard_impl4<Obj,MemFun,P1,P2,P3,P4> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4){
+	return obj_scope_guard_impl4<Obj,MemFun,P1,P2,P3,P4>(obj,fun,p1,p2,p3,p4);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	5
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5>
+class scope_guard_impl5 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+
+public:
+	scope_guard_impl5(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5) 
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5) {}
+	~scope_guard_impl5(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_,p5_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5>
+scope_guard_impl5<Fun,P1,P2,P3,P4,P5> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5){
+	return scope_guard_impl5<Fun,P1,P2,P3,P4,P5>(fun,p1,p2,p3,p4,p5);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	5
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4, typename P5>
+class obj_scope_guard_impl5 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+
+public:
+	obj_scope_guard_impl5(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5) {}
+	~obj_scope_guard_impl5(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_,p5_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4,typename P5>
+obj_scope_guard_impl5<Obj,MemFun,P1,P2,P3,P4,P5> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4,const P5& p5){
+	return obj_scope_guard_impl5<Obj,MemFun,P1,P2,P3,P4,P5>(obj,fun,p1,p2,p3,p4,p5);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	6
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>
+class scope_guard_impl6 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+
+public:
+	scope_guard_impl6(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6)
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6) {}
+	~scope_guard_impl6(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_,p5_,p6_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>
+scope_guard_impl6<Fun,P1,P2,P3,P4,P5,P6> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6){
+	return scope_guard_impl6<Fun,P1,P2,P3,P4,P5,P6>(fun,p1,p2,p3,p4,p5,p6);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	6
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>
+class obj_scope_guard_impl6 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+
+public:
+	obj_scope_guard_impl6(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6) {}
+	~obj_scope_guard_impl6(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_,p5_,p6_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4,typename P5,typename P6>
+obj_scope_guard_impl6<Obj,MemFun,P1,P2,P3,P4,P5,P6> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4,const P5& p5,const P6& p6){
+	return obj_scope_guard_impl6<Obj,MemFun,P1,P2,P3,P4,P5,P6>(obj,fun,p1,p2,p3,p4,p5,p6);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	7
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>
+class scope_guard_impl7 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+
+public:
+	scope_guard_impl7(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7)
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7) {}
+	~scope_guard_impl7(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_,p5_,p6_,p7_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>
+scope_guard_impl7<Fun,P1,P2,P3,P4,P5,P6,P7> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7){
+	return scope_guard_impl7<Fun,P1,P2,P3,P4,P5,P6,P7>(fun,p1,p2,p3,p4,p5,p6,p7);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	7
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>
+class obj_scope_guard_impl7 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+
+public:
+	obj_scope_guard_impl7(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7) {}
+	~obj_scope_guard_impl7(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_,p5_,p6_,p7_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4,typename P5,typename P6,typename P7>
+obj_scope_guard_impl7<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4,const P5& p5,const P6& p6,const P7& p7){
+	return obj_scope_guard_impl7<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7>(obj,fun,p1,p2,p3,p4,p5,p6,p7);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	8
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>
+class scope_guard_impl8 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+	const P8 p8_;
+
+public:
+	scope_guard_impl8(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8)
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7),p8_(p8) {}
+	~scope_guard_impl8(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_,p5_,p6_,p7_,p8_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>
+scope_guard_impl8<Fun,P1,P2,P3,P4,P5,P6,P7,P8> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8){
+	return scope_guard_impl8<Fun,P1,P2,P3,P4,P5,P6,P7,P8>(fun,p1,p2,p3,p4,p5,p6,p7,p8);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	8
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>
+class obj_scope_guard_impl8 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+	const P8 p8_;
+
+public:
+	obj_scope_guard_impl8(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7),p8_(p8) {}
+	~obj_scope_guard_impl8(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_,p5_,p6_,p7_,p8_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4,typename P5,typename P6,typename P7,typename P8>
+obj_scope_guard_impl8<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7,P8> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4,const P5& p5,const P6& p6,const P7& p7,const P8& p8){
+	return obj_scope_guard_impl8<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7,P8>(obj,fun,p1,p2,p3,p4,p5,p6,p7,p8);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Non-member function
+	# Params:	9
+\*	----------------------------------------------------------------------	*/
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
+class scope_guard_impl9 : public scope_guard_impl_base
+{
+	Fun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+	const P8 p8_;
+	const P9 p9_;
+
+public:
+	scope_guard_impl9(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8, const P9& p9)
+					: fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7),p8_(p8),p9_(p9) {}
+	~scope_guard_impl9(){
+		if(!dismissed_){
+			try{fun_(p1_,p2_,p3_,p4_,p5_,p6_,p7_,p8_,p9_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<typename Fun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
+scope_guard_impl9<Fun,P1,P2,P3,P4,P5,P6,P7,P8,P9> make_guard(const Fun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8, const P9& p9){
+	return scope_guard_impl9<Fun,P1,P2,P3,P4,P5,P6,P7,P8,P9>(fun,p1,p2,p3,p4,p5,p6,p7,p8,p9);
+}
+
+/*	----------------------------------------------------------------------	*\
+	scope_guard
+
+	Type:		Member function
+	# Params:	9
+\*	----------------------------------------------------------------------	*/
+template<class Obj, typename MemFun, typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
+class obj_scope_guard_impl9 : public scope_guard_impl_base
+{
+	Obj& obj_;
+	MemFun fun_;
+	const P1 p1_;
+	const P2 p2_;
+	const P3 p3_;
+	const P4 p4_;
+	const P5 p5_;
+	const P6 p6_;
+	const P7 p7_;
+	const P8 p8_;
+	const P9 p9_;
+
+public:
+	obj_scope_guard_impl9(Obj& obj,const MemFun& fun, const P1& p1, const P2& p2, const P3& p3, const P4& p4, const P5& p5, const P6& p6, const P7& p7, const P8& p8, const P9& p9)
+			: obj_(obj),fun_(fun),p1_(p1),p2_(p2),p3_(p3),p4_(p4),p5_(p5),p6_(p6),p7_(p7),p8_(p8),p9_(p9) {}
+	~obj_scope_guard_impl9(){
+		if(!dismissed_){
+			try{(obj_.*fun_)(p1_,p2_,p3_,p4_,p5_,p6_,p7_,p8_,p9_);}catch(...){}
+		}
+	}
+};
+
+// make_guard Helper Function
+template<class Obj, typename MemFun,typename P1,typename P2,typename P3,typename P4,typename P5,typename P6,typename P7,typename P8,typename P9>
+obj_scope_guard_impl9<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7,P8,P9> make_guard(Obj& obj,const MemFun& fun,const P1& p1,const P2& p2,const P3& p3,const P4& p4,const P5& p5,const P6& p6,const P7& p7,const P8& p8,const P9& p9){
+	return obj_scope_guard_impl9<Obj,MemFun,P1,P2,P3,P4,P5,P6,P7,P8,P9>(obj,fun,p1,p2,p3,p4,p5,p6,p7,p8,p9);
+}
+
+} // namespace dumbnose

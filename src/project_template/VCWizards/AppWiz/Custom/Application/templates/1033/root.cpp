@@ -1,0 +1,13 @@
+#include "stdafx.h"
+
+int wmain(int argc, wchar_t* argv[])
+{
+	try {
+
+	} catch(std::exception& ex) {
+		std::cerr << ex.what() << std::endl;
+	}
+
+	return 0;
+}
+
