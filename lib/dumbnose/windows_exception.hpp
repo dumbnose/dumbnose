@@ -3,7 +3,6 @@
 
 #include <exception>
 #include <string>
-#include <boost\format.hpp>
 
 
 namespace dumbnose {
@@ -14,13 +13,15 @@ namespace dumbnose {
 //
 class windows_exception : public std::exception {
 public:
-	windows_exception(const char* desc, unsigned long num=GetLastError())
+	windows_exception(const char* desc, unsigned long num = GetLastError())
 		: std::exception(desc), num_(num)
 	{
-		desc_ = (boost::format("Error %d: %s \n %s") % num_ % desc % windows_error()).str();
+		std::stringstream message;
+		message << "Error " << num_ << ": " << desc << '\n' << windows_error();
+		desc_ = message.str();
 	}
 
-	virtual const char *what() const {
+	virtual const char* what() const {
 		return desc_.c_str();
 	}
 
@@ -31,11 +32,10 @@ public:
 	std::string windows_error() {
 
 		char* message = 0;
-		DWORD dw = GetLastError(); 
+		DWORD dw = GetLastError();
 
-		DWORD result = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, num_,
-										MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&message, 0, NULL);
-		if(result==0 || message==0) return "";
+		DWORD result = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, num_, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&message, 0, NULL);
+		if (result == 0 || message == 0) return "";
 
 		std::string win_err(message);
 		LocalFree(message);
