@@ -102,10 +102,6 @@ public:
 		return *this;
 	}
 
-	// Copying modifies the source, so you can't copy a const source
-	event_source_cookie(const event_source_cookie<event_source_t>&) = delete;
-	event_source_cookie& operator=(const event_source_cookie<event_source_t>&) = delete;
-
 	void initialize(event_source_t* event_source, uint64_t cookie)
 	{
 		event_source_ = event_source;
