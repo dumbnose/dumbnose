@@ -22,32 +22,63 @@ public:
 
 	static key hkcu()
 	{
-		key hklm_key;
-		hklm_key.open(HKEY_CURRENT_USER, L"", KEY_READ);
-		return hklm_key;
+		key hkcu_key;
+		hkcu_key.open(HKEY_CURRENT_USER, L"", KEY_READ);
+		return hkcu_key;
 	}
 
 	const HKEY handle() const {return handle_->handle();}
 
-	key open_read(std::wstring subkey_name) 
+	key open_read(std::wstring_view subkey_name)
 	{
 		key subkey;
 		subkey.open(handle_->handle(),subkey_name,KEY_READ);
 		return subkey;
 	}
 
-	key open_all_access(std::wstring subkey_name) 
+	key open_all_access(std::wstring_view subkey_name)
 	{
 		key subkey;
 		subkey.open(handle_->handle(),subkey_name,KEY_ALL_ACCESS);
 		return subkey;
 	}
 
-	key create(std::wstring subkey_name)
+	key create(std::wstring_view subkey_name)
 	{
 		key subkey;
 		subkey.create(handle_->handle(), subkey_name, KEY_ALL_ACCESS);
 		return subkey;
+	}
+
+	std::optional<std::wstring> get_value_as_string(std::wstring_view value_name)
+	{
+		DWORD value_length = 0;
+		DWORD value_type = REG_NONE;
+		LSTATUS status = RegQueryValueEx(handle(), value_name.data(), NULL, &value_type, nullptr, &value_length);
+		if (status == ERROR_FILE_NOT_FOUND) return {};
+		if(status != STATUS_SUCCESS) throw windows_exception(__FUNCTION__ ": RegQueryValueEx() failed", status);
+		if(value_type != REG_SZ) throw windows_exception(__FUNCTION__ ": Value is not a string", ERROR_INVALID_DATATYPE);
+
+		std::unique_ptr<wchar_t[]> buffer = std::make_unique<wchar_t[]>((value_length+1) / sizeof(wchar_t)); // +1 in case the size is odd
+
+		status = RegQueryValueEx(handle(), value_name.data(), NULL, &value_type, (LPBYTE)buffer.get(), &value_length);
+		if (status != STATUS_SUCCESS) throw windows_exception(__FUNCTION__ ": RegQueryValueEx() failed", status);
+		
+		std::wstring value;
+
+		// Strings in the registry aren't necessarily null-terminated.  Need to handle both cases.
+		size_t value_len = value_length / sizeof(wchar_t);
+		if (buffer.get()[value_len - 1] == L'\0') value_len--;
+		
+		value.assign(buffer.get(), value_len);
+
+		return value;
+	}
+
+	void set_value_as_string(std::wstring_view name, std::wstring_view value)
+	{
+		LSTATUS status = RegSetValueEx(handle(), name.data(), NULL, REG_SZ, (LPBYTE)value.data(), value.length() * sizeof(wchar_t));
+		if (status != STATUS_SUCCESS) throw windows_exception(__FUNCTION__ ": RegSetValueEx() failed", status);
 	}
 
 	std::list<std::wstring> enum_value_names()
@@ -138,18 +169,18 @@ protected:
 		HKEY handle_;
 	};
 
-	void open(HKEY base_key, const std::wstring subkey_path, REGSAM access)
+	void open(HKEY base_key, const std::wstring_view subkey_path, REGSAM access)
 	{
 		HKEY handle = 0;
-		LONG result = RegOpenKeyEx(base_key, subkey_path.c_str(), 0, access, &handle);
+		LONG result = RegOpenKeyEx(base_key, subkey_path.data(), 0, access, &handle);
 		if(result!=ERROR_SUCCESS) throw windows_exception("Could not open key", result);
 		handle_->assign(handle);
 	}
 
-	void create(HKEY base_key, const std::wstring subkey_path, REGSAM access)
+	void create(HKEY base_key, const std::wstring_view subkey_path, REGSAM access)
 	{
 		HKEY handle = 0;
-		LONG result = RegCreateKeyEx(base_key, subkey_path.c_str(), 0, NULL, 0, access, NULL, &handle, NULL);
+		LONG result = RegCreateKeyEx(base_key, subkey_path.data(), 0, NULL, 0, access, NULL, &handle, NULL);
 		if (result != ERROR_SUCCESS) throw windows_exception("Could not open key", result);
 		handle_->assign(handle);
 	}
