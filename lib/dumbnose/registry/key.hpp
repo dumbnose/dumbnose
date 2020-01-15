@@ -43,6 +43,13 @@ public:
 		return subkey;
 	}
 
+	key create(std::wstring subkey_name)
+	{
+		key subkey;
+		subkey.create(handle_->handle(), subkey_name, KEY_ALL_ACCESS);
+		return subkey;
+	}
+
 	std::list<std::wstring> enum_value_names()
 	{
 		std::list<std::wstring> result;
@@ -136,6 +143,14 @@ protected:
 		HKEY handle = 0;
 		LONG result = RegOpenKeyEx(base_key, subkey_path.c_str(), 0, access, &handle);
 		if(result!=ERROR_SUCCESS) throw windows_exception("Could not open key", result);
+		handle_->assign(handle);
+	}
+
+	void create(HKEY base_key, const std::wstring subkey_path, REGSAM access)
+	{
+		HKEY handle = 0;
+		LONG result = RegCreateKeyEx(base_key, subkey_path.c_str(), 0, NULL, 0, access, NULL, &handle, NULL);
+		if (result != ERROR_SUCCESS) throw windows_exception("Could not open key", result);
 		handle_->assign(handle);
 	}
 
