@@ -1,7 +1,7 @@
 #pragma once
 
 #include "windows_exception.hpp"
-#include <boost/noncopyable.hpp>
+#include <dumbnose/noncopyable.hpp>
 
 
 namespace dumbnose
@@ -9,7 +9,7 @@ namespace dumbnose
 
 
 template<class T>
-class singleton : boost::noncopyable
+class singleton : dumbnose::noncopyable
 {
 public:
 	static T& instance(){return *get_instance();}
